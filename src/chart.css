@@ -1,0 +1,111 @@
+/* Chart, summary, table and download buttons rendered by src/chart.js. */
+.pw-chart {
+  --pw-muted: #555;
+  --pw-rule: #ddd;
+  --pw-row-alt: #f6f6f6;
+  font-family: system-ui, sans-serif;
+}
+
+.pw-chart figure {
+  margin: 0 0 1rem;
+}
+
+.pw-chart-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  --plot-background: white;
+}
+
+.pw-chart figcaption {
+  font-size: 0.85rem;
+  color: var(--pw-muted);
+}
+
+.pw-chart figcaption p {
+  margin: 0.25rem 0;
+}
+
+.pw-warnings {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.pw-table-wrap {
+  overflow-x: auto;
+}
+
+.pw-table {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.pw-table caption {
+  caption-side: bottom;
+  text-align: left;
+  padding-top: 0.4rem;
+  color: var(--pw-muted);
+}
+
+.pw-table th,
+.pw-table td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--pw-rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.pw-table thead th {
+  white-space: nowrap;
+}
+
+.pw-table td.pw-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pw-table tr.pw-background {
+  background: var(--pw-row-alt);
+  border-top: 2px dashed var(--pw-rule);
+}
+
+.pw-table th[scope="row"] {
+  font-weight: 600;
+}
+
+.pw-pct {
+  display: block;
+  color: var(--pw-muted);
+}
+
+.pw-not-drawn {
+  font-style: italic;
+}
+
+.pw-swatch {
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  margin-right: 0.35em;
+  vertical-align: baseline;
+}
+
+.pw-downloads {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pw-chart {
+    --pw-muted: #aaa;
+    --pw-rule: #444;
+    --pw-row-alt: #262626;
+  }
+
+  .pw-chart-svg {
+    --plot-background: #1b1b1b;
+  }
+}

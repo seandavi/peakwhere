@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>peakwhere: chart with mock results</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../../src/chart.css">
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+    @media (prefers-color-scheme: dark) { body { background: #1b1b1b; color: #eee; } }
+  </style>
+</head>
+<body>
+  <h1>Chart with mock results</h1>
+  <p>For eyeballing <code>src/chart.js</code>. The numbers are made up, shaped like the
+  genome-wide proportions of the ENCODE thymus reference files. Hover a segment for its
+  count.</p>
+
+  <h2>Counted by peak centre</h2>
+  <div id="centre"></div>
+
+  <h2>Counted by base pair</h2>
+  <div id="bp"></div>
+
+  <script type="module">
+    import { render } from "../../src/chart.js";
+    import { CATEGORIES } from "../../src/constants.js";
+
+    // Percentages per category in CATEGORIES order; counts are made to match.
+    function mock(label, total, pcts, unmatched, extra = {}) {
+      const counts = Object.fromEntries(
+        CATEGORIES.map((c, i) => [c, Math.round((total * pcts[i]) / 100)]),
+      );
+      const matched = Object.values(counts).reduce((a, b) => a + b, 0);
+      return { label, counts, matched, unmatched, ...extra };
+    }
+
+    const centre = [
+      mock("thymus_H3K4me3_ENCFF674JZY", 25099, [68.9, 2.6, 0.4, 1.1, 15.7, 11.2], 3),
+      mock("thymus_H3K36me3_ENCFF853BYO", 91474, [3.4, 1.0, 6.5, 15.0, 71.5, 2.6], 15),
+      mock("thymus_CTCF_ENCFF714WDP", 20220, [45.5, 1.5, 1.1, 3.5, 25.7, 22.8], 0),
+      mock("thymus_DNase_ENCFF979ULB", 67929, [36.8, 1.2, 0.8, 2.5, 32.2, 26.5], 7),
+      {
+        label: "differential_peaks_up",
+        matched: 1905,
+        unmatched: 260,
+        refused: "12% of peaks on chromosomes not in the annotation (chrUn_JH584304, chrUn_GL456239)",
+      },
+      mock("Genome", 2.6e9, [2.9, 0.2, 1.0, 1.3, 41.6, 53.0], 0, { background: true, mode: "bp" }),
+    ].map((r) => ({ mode: "centre", ...r }));
+
+    const bp = [
+      mock("thymus_H3K4me3_ENCFF674JZY", 3.1e7, [61.0, 3.1, 0.6, 2.4, 19.2, 13.7], 2400,
+        { peaks: { matched: 25096, unmatched: 3 } }),
+      mock("thymus_H3K36me3_ENCFF853BYO", 2.2e7, [2.8, 0.9, 7.1, 14.2, 72.5, 2.5], 3100,
+        { peaks: { matched: 91459, unmatched: 15 } }),
+      mock("Genome", 2.6e9, [2.9, 0.2, 1.0, 1.3, 41.6, 53.0], 0, { background: true }),
+    ].map((r) => ({ mode: "bp", ...r }));
+
+    const meta = {
+      annotationName: "gencode.vM25.basic.annotation.gff3.gz",
+      assembly: "GRCm38",
+      warnings: ["Mock data: these numbers are made up."],
+    };
+    render(document.getElementById("centre"), centre, { mode: "centre" }, meta);
+    render(document.getElementById("bp"), bp, { mode: "bp", promoterUpstream: 3000, promoterDownstream: 3000 },
+      { ...meta, warnings: [] });
+  </script>
+</body>
+</html>
