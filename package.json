@@ -13,7 +13,8 @@
   "scripts": {
     "test": "node --test",
     "vendor": "node scripts/vendor.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "snap": "node scripts/snap.mjs"
   },
   "engines": {
     "node": ">=22"
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@observablehq/plot": "0.6.17",
     "esbuild": "^0.25.0",
-    "jsdom": "^26.0.0"
+    "jsdom": "^26.0.0",
+    "playwright-core": "^1.63.0"
   }
 }
