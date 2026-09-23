@@ -147,3 +147,42 @@ be documented.
 
 **Keep** — Asking a worker to mutation-test its own tests is cheap, and it found one
 test that couldn't fail.
+
+---
+
+## Entry 6 — Engine, integration, and v0.1.0 (#10, #30, #11, #13, #14; PRs #29, #31, #32)
+
+**Asked** — *SD*: finish peakwhere lean. One integration worker and one review, then a
+README, and close the milestone. Skip the separate reviewer agent, and leave browser e2e
+in CI (#12) for later.
+
+**Workers did** — The engine owner built the partition and classifier (#29), then fixed
+a bug it found in its own earlier module (#30, PR #31): with the protein-coding filter
+on, a GTF chromosome carrying only non-coding transcripts disappeared, so its peaks
+turned unmatched. The integrator (#32) moved the analysis into a Web Worker behind a
+Node-testable `src/analysis.js`. It caches the parsed annotation per filter setting,
+re-runs automatically on setting changes, and tags runs so a stale result can't
+overwrite a newer one.
+
+**Orchestrator did** — Answered the integrator's three design questions mid-run, passed
+the engine owner's notes to it, reviewed and merged, and wrote the README.
+
+**Checked how** — *Orchestrator*: an independent `bedtools` pipeline over full GENCODE M25
+with the app's exact rules, including separate UTR categories. Every category of all
+five ENCODE files and the genome background match the engine to two decimal places. So
+does the Vahedi H3K27ac CSV (49,781 peaks, chromosomes written `12`): 19.25% promoter,
+46.87% intron, 30.23% intergenic in both. Local `npm test` on each PR (116, then 134).
+*Try the example* in headless Chrome, with no console errors or offsite requests.
+*Worker* (#32): full reference data in the page in 2.9 s, main thread never blocked for
+more than 42 ms.
+
+**Confidently wrong** — *Orchestrator*: the first `bedtools` run reused an `awk` array
+name as a scalar. Awk aborted partway through, and the promoter and intron layers came
+out empty, yet the script still printed a tidy table of plausible-looking percentages.
+Caught only because 0.0% promoter for H3K4me3 is biologically impossible. A draft of this
+README claimed Ensembl support that no whole Ensembl file had tested.
+
+**Keep** — An independent cross-check is only independent if it can fail loudly. Read its
+numbers against the biology before trusting them. And the engine owner finding a bug in
+its own earlier module while building the next is the argument for keeping the serial
+issues with one agent.
