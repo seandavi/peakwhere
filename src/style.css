@@ -568,7 +568,6 @@ input[type="checkbox"] {
 }
 
 .progress,
-.warnings,
 .results {
   margin-top: 1.5rem;
 }
@@ -600,19 +599,6 @@ input[type="checkbox"] {
   font-weight: 600;
 }
 
-.warnings {
-  padding: 0.75rem 1.25rem;
-  background: var(--warn-bg);
-  border: 1px solid var(--warn-border);
-  border-radius: var(--radius);
-  color: var(--warn-text);
-}
-
-.warnings ul {
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
 .results {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -622,57 +608,28 @@ input[type="checkbox"] {
 }
 
 .results h2 {
-  margin: 0;
+  margin: 0 0 0.75rem;
   font-size: 1.15rem;
 }
 
-.table-scroll {
-  overflow-x: auto;
+/* src/chart.js's table, a little tighter so a Genome row's 10-digit base-pair counts
+   still fit the card at desktop widths. It scrolls sideways on narrower screens. */
+.results .pw-table {
+  font-size: 0.75rem;
 }
 
-.results table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
+.results .pw-table th,
+.results .pw-table td {
+  padding: 0.25rem 0.2rem;
 }
 
-.results th,
-.results td {
-  padding: 0.45rem 0.6rem;
-  border-bottom: 1px solid var(--border);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.results th[scope="row"],
-.results thead th:first-child {
-  text-align: left;
-  min-width: 8rem;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.results thead th {
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.results .pct {
-  display: block;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.results tr.background {
-  background: var(--surface-2);
-  font-style: italic;
-}
-
-.results tr.refused td {
-  text-align: left;
-  color: var(--error);
-  white-space: normal;
+/* The warnings list rendered by src/chart.js under the chart. */
+.results .pw-warnings {
+  padding: 0.75rem 1.25rem 0.75rem 2.35rem;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
+  color: var(--warn-text);
 }
 
 @media (max-width: 560px) {
