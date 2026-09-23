@@ -63,9 +63,18 @@ test("corrupt gzip is an error, not an empty file", async () => {
   await assert.rejects(collect(linesFromFile(new Blob([truncated]))));
 });
 
-test("multi-member gzip (bgzip) fails with an error that says so", async () => {
+test("multi-member gzip (bgzip) is read whole or fails with an error that says so", async () => {
+  // Node 22's DecompressionStream reads every member; Node 24+ and Chrome stop after the
+  // first. Either is fine. Silently returning only the first member is not.
   const members = new Blob([gzipSync("a\n"), gzipSync("b\n")]);
-  await assert.rejects(collect(linesFromFile(members)), /multi-member gzip.*bgzip.*issue #24/s);
+  let lines;
+  try {
+    lines = await collect(linesFromFile(members));
+  } catch (error) {
+    assert.match(error.message, /multi-member gzip.*bgzip.*issue #24/s);
+    return;
+  }
+  assert.deepEqual(lines, ["a", "b"]);
 });
 
 test("stopping early cancels the underlying stream", async () => {
