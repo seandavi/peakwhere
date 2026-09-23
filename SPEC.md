@@ -341,7 +341,9 @@ exports plain functions over plain objects. Category keys come from `src/constan
 //                              exon: [[s, e]...], transcript: [[s, e]...]}>}>
 //               Consumes the stream incrementally (ADR-0016). A transcript is any id that
 //               is the parent of an exon. GTF UTRs split into 5'/3' by CDS position and
-//               strand. Promoters are NOT built here: they depend on a setting, so
+//               strand. Also returns stats: {proteinCodingFilter: "off" | "applied" |
+//               "unavailable", …}, so the page can say when the filter couldn't apply.
+//               Promoters are NOT built here: they depend on a setting, so
 //               the engine builds them from tss. Introns need no list of their own:
 //               transcript spans enter the partition just above intergenic, so any
 //               transcript base not claimed by a higher category is intron.
