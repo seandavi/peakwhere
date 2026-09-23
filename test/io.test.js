@@ -63,6 +63,11 @@ test("corrupt gzip is an error, not an empty file", async () => {
   await assert.rejects(collect(linesFromFile(new Blob([truncated]))));
 });
 
+test("multi-member gzip (bgzip) fails with an error that says so", async () => {
+  const members = new Blob([gzipSync("a\n"), gzipSync("b\n")]);
+  await assert.rejects(collect(linesFromFile(members)), /multi-member gzip.*bgzip.*issue #24/s);
+});
+
 test("stopping early cancels the underlying stream", async () => {
   let cancelled = false;
   let pulls = 0;

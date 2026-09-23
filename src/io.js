@@ -23,7 +23,7 @@ export async function* linesFromStream(stream) {
   let rest = "";
   try {
     for (;;) {
-      const { value, done } = await reader.read();
+      const { value, done } = await reader.read().catch(explainGzipError);
       if (done) break;
       const text = rest + value;
       let from = 0;
@@ -40,6 +40,22 @@ export async function* linesFromStream(stream) {
     // Reached early when the consumer stops iterating: stop reading the file too.
     await reader.cancel().catch(() => {});
   }
+}
+
+/**
+ * DecompressionStream stops at the end of the first gzip member and calls the rest
+ * "junk" (Chrome: "Junk found after end of compressed data."; Node:
+ * ERR_TRAILING_JUNK_AFTER_STREAM_END). bgzip writes files made of many members.
+ */
+function explainGzipError(error) {
+  if (error?.code === "ERR_TRAILING_JUNK_AFTER_STREAM_END" || /junk/i.test(error?.message)) {
+    throw new Error(
+      "This file looks like a multi-member gzip (as written by bgzip), which isn't " +
+        "supported yet (issue #24). Decompress it, or recompress it with plain gzip.",
+      { cause: error },
+    );
+  }
+  throw error;
 }
 
 /** Text stream of `stream`, gunzipped first if it starts with the gzip magic bytes. */
