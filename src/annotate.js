@@ -42,7 +42,10 @@ const UTR_GENERIC = 0;
  * UTR layers (it stays in the exon layer) and counted in `stats.utrsWithoutCds`.
  *
  * Each layer is sorted, and intervals that overlap or touch are merged. TSSs are sorted
- * by position and de-duplicated. `transcripts` counts the transcripts kept.
+ * by position and de-duplicated. `transcripts` counts the transcripts kept. `byChrom`
+ * has an entry for every chromosome with a feature in the stream, even when the filter
+ * keeps none of its transcripts and every layer is empty: the chromosome is still in the
+ * annotation, so its peaks are intergenic, not unmatched (issue #30).
  *
  * With `proteinCodingOnly`, a transcript is kept when its type is `protein_coding`: its
  * own feature's `transcript_type`, else that feature's `gene_type`, else the same from
@@ -232,7 +235,6 @@ class TranscriptTable {
     const byChrom = new Map();
     this.chromNames.forEach((name, c) => {
       const l = perChrom[c];
-      if (l.transcript.length === 0) return;
       byChrom.set(name, {
         tss: sortedUniqueTss(l.tss),
         utr5: sortedMerged(l.utr5),

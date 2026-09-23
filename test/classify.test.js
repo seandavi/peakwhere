@@ -337,3 +337,23 @@ test("100k peaks against 50k transcripts classify in well under a second", () =>
   assert.equal(bp.matched, peaks.reduce((n, p) => n + p.end - p.start, 0));
   assert.ok(elapsed < 1000, `took ${elapsed.toFixed(0)} ms`);
 });
+
+test("with the filter on, peaks on a GTF chromosome with only a lncRNA are intergenic (#30)", async () => {
+  const lncRNA = 'gene_id "gL"; transcript_id "tL"; gene_type "lncRNA"; transcript_type "lncRNA";';
+  const gtf = [
+    ...(await readFile(fixture("fixture.gtf"), "utf8")).split("\n").filter(Boolean),
+    ["chrL", "t", "exon", 101, 500, ".", "+", ".", lncRNA].join("\t"),
+  ];
+  const annotation = await buildAnnotation(parseAnnotationLines(gtf), { proteinCodingOnly: true });
+  const partition = buildPartition(annotation);
+  const peaks = [
+    { chrom: "chrL", start: 200, end: 300 }, // inside the dropped lncRNA's exon
+    { chrom: "L", start: 5000, end: 5100 },
+    { chrom: "chrZ", start: 0, end: 10 },
+  ];
+  const result = classifyPeaks(partition, peaks);
+  assert.deepEqual(result.perPeak, ["intergenic", "intergenic", "unmatched"]);
+  assert.deepEqual(result.peaks, { matched: 2, unmatched: 1 });
+  assert.deepEqual(result.unmatchedChroms, ["chrZ"]);
+  assert.equal(classifyPeaks(partition, peaks, { mode: "bp" }).counts.intergenic, 200);
+});

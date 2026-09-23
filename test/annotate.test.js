@@ -276,3 +276,21 @@ test("layers are sorted and merged; shared TSSs appear once", async () => {
   assert.deepEqual(chrF.tss, [[100, "+"]]);
   assert.equal(annotation.transcripts, 2);
 });
+
+test("a chromosome whose transcripts the filter drops stays in byChrom, empty (#30)", async () => {
+  const lncRNA = 'gene_id "gL"; transcript_id "tL"; gene_type "lncRNA"; transcript_type "lncRNA";';
+  const lines = [
+    ...(await fixtureLines("fixture.gtf")),
+    ["chrL", "t", "exon", 101, 500, ".", "+", ".", lncRNA].join("\t"),
+  ];
+  const all = await fromLines(lines);
+  assert.deepEqual([...all.byChrom.keys()], ["chrF", "chrL"]);
+  assert.deepEqual(all.byChrom.get("chrL").transcript, [[100, 500]]);
+
+  const coding = await fromLines(lines, { proteinCodingOnly: true });
+  assert.equal(coding.stats.proteinCodingFilter, "applied");
+  assert.equal(coding.transcripts, 3);
+  assert.deepEqual([...coding.byChrom.keys()], ["chrF", "chrL"]);
+  assert.deepEqual(coding.byChrom.get("chrL"), { tss: [], utr5: [], utr3: [], exon: [], transcript: [] });
+  assert.deepEqual(coding.chromLengths, new Map());
+});
