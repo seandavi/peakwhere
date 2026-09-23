@@ -350,14 +350,19 @@ exports plain functions over plain objects. Category keys come from `src/constan
 //                 → Map<chrom, {starts: Int32Array|number[], ends, categories}>
 //               classifyPeaks(partition, peaks, {mode: "centre" | "bp"})
 //                 → {counts: {category: n}, matched, unmatched, unmatchedChroms: string[],
-//                    outOfRange, perPeak: [category | "unmatched"]}
+//                    peaks: {matched, unmatched}, outOfRange, perPeak: [category | "unmatched"]}
+//               counts, matched and unmatched are in the mode's unit: peaks in "centre"
+//               mode, base pairs in "bp" mode. `peaks` always counts peaks, because the
+//               5% refusal rule (ADR-0006) is about peaks whatever the mode.
 //               genomeBackground(partition, chromLengths) → {counts: {category: bp}, total}
 //               normaliseChrom(name) → key used for matching (ADR-0006)
 //
 // chart.js      render(el, results, settings, meta) → void
-//               results: [{label, counts, matched, unmatched, mode, refused?: string}]
+//               results: [{label, counts, matched, unmatched, mode, peaks?, refused?: string}]
 //               (a background row has label "Genome" and background: true)
-//               toCSV(results) → string; settingsSummary(settings, meta) → string
+//               toCSV(results, summary?) → string; when summary is given, the first
+//               line is "# <summary>" (pandas comment="#", R comment.char="#").
+//               settingsSummary(settings, meta) → string
 ```
 
 All coordinates crossing these boundaries are 0-based half-open. That is the contract, and
