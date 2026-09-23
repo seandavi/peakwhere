@@ -239,32 +239,47 @@ test("a gzipped fixture with a misleading name parses the same as the plain one"
   assert.deepEqual(await collect(parseAnnotationLines(linesFromFile(disguised), { format: "auto" })), plain);
 });
 
-test("streams a large gzipped annotation without reading it all first", async () => {
-  const total = 300_000;
-  const perChunk = 1000;
+/** A GTF of `total` synthetic exon lines, generated on demand; `produced()` counts lines so far. */
+const syntheticGtf = (total) => {
   let produced = 0;
-  let producedAtFirstRecord = null;
-  const source = new ReadableStream({
+  const stream = new ReadableStream({
     pull(controller) {
       if (produced === total) return controller.close();
       let text = "";
-      for (let i = 0; i < perChunk; i++, produced++) {
+      for (let i = 0; i < 1000; i++, produced++) {
         const start = produced * 10 + 1;
         text += `chr1\tsynthetic\texon\t${start}\t${start + 4}\t.\t+\t.\tgene_id "g${produced}"; transcript_id "t${produced}";\r\n`;
       }
       controller.enqueue(new TextEncoder().encode(text));
     },
   });
-  const gzipped = source.pipeThrough(new CompressionStream("gzip"));
+  return { stream, produced: () => produced };
+};
 
+/** Parse `stream`, checking every synthetic line arrives with the right coordinates. */
+const parseSynthetic = async (stream, total, onFirst = () => {}) => {
   let count = 0;
   let last;
-  for await (const record of parseAnnotationLines(linesFromStream(gzipped), { format: "auto" })) {
-    producedAtFirstRecord ??= produced;
+  for await (const record of parseAnnotationLines(linesFromStream(stream), { format: "auto" })) {
+    if (count === 0) onFirst();
     count++;
     last = record;
   }
   assert.equal(count, total);
   assert.deepEqual([last.start, last.end, last.parents], [(total - 1) * 10, (total - 1) * 10 + 5, [`t${total - 1}`]]);
+};
+
+test("streams a large annotation: the first record arrives before the input is read", async () => {
+  const total = 300_000;
+  const source = syntheticGtf(total);
+  let producedAtFirstRecord;
+  await parseSynthetic(source.stream, total, () => (producedAtFirstRecord = source.produced()));
   assert.ok(producedAtFirstRecord < total / 10, `first record after ${producedAtFirstRecord} of ${total} lines`);
+});
+
+test("streams a large gzipped annotation", async () => {
+  // No laziness check here: Node 22's CompressionStream and DecompressionStream read
+  // their whole input before emitting anything. Node 24+ and Chrome don't.
+  const total = 300_000;
+  await parseSynthetic(syntheticGtf(total).stream.pipeThrough(new CompressionStream("gzip")), total);
 });
