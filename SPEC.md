@@ -299,6 +299,8 @@ src/chart.js          results → Plot chart, table, CSV/SVG/PNG     (issue: cha
 src/app.js            UI state, file inputs, settings form         (issue: page shell)
 src/pipeline.js       main-thread API over the worker              (issue: integration)
 src/worker.js         runs parse → annotate → classify off-thread  (issue: integration)
+src/analysis.js       the worker's logic, testable in Node: Analysis (cached annotation per
+                      filter setting), refusal() (ADR-0006), chrom.sizes merging  (issue: integration)
 vendor/               generated; never edited by hand
 test/fixtures/        the hand-built fixture and expected.json (§7, ADR-0014)
 test/*.test.js        node --test
