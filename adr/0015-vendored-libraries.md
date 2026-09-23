@@ -1,7 +1,7 @@
 # ADR-0015 — Libraries bundled into a checked-in vendor/; no CDN, no build to run
 
 **Date:** 2026-09-23
-**Status:** accepted
+**Status:** accepted; library list amended by ADR-0016
 **Deciders:** orchestrating agent, acting for Sean Davis (not yet reviewed by him)
 **Spec:** §5 Privacy, §9
 

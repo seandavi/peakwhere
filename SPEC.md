@@ -276,51 +276,88 @@ by its centre or by any overlap. Q1 and Q2 are real decisions, not formalities.
 
 ## 9. Architecture and work breakdown
 
-Plain ES modules; **running the app needs no build step**. Pages serves the repository
-root.
+Plain ES modules; **running the app needs no build step**. Pages serves a copy of
+`index.html`, `src/`, `vendor/` and `examples/`.
 
 The page can't `import '@observablehq/plot'` directly, because a browser can't resolve an
-npm package name, and a CDN would break the privacy rule (§5). So third-party libraries
-are bundled once into `vendor/` and **checked in**. `package.json` holds the test runner
-and one script, which is rerun only when a library version changes:
-
-```json
-"vendor": "esbuild vendor-src/plot.js --bundle --format=esm --minify --outfile=vendor/plot.js && esbuild vendor-src/interval-tree.js --bundle --format=esm --minify --outfile=vendor/interval-tree.js"
-```
-
-`vendor-src/plot.js` is one line: `export * from "@observablehq/plot"`. Checked on
-2026-09-23: Plot bundles to 394 KB (133 KB gzipped) with no remote imports, the interval
-tree to 9 KB, and both load and run as ES modules. Source imports them by relative path
-(`import * as Plot from '../vendor/plot.js'`), which works in the page, the worker and
-Node tests alike.
+npm package name, and a CDN would break the privacy rule (§5). So Plot is bundled once
+into `vendor/` and **checked in** (ADR-0015). `npm run vendor` regenerates it, together
+with `THIRD_PARTY_LICENSES.md`, and CI fails if the checked-in copy drifts. Source
+imports it by relative path (`import * as Plot from '../vendor/plot.js'`), which works in
+the page, a worker and Node tests alike. There is no interval-tree dependency:
+classification uses a priority-resolved partition (ADR-0016).
 
 ```
-index.html            page shell, file inputs, settings form
-vendor/               checked-in library bundles; regenerate with npm run vendor
-src/annotation.js     GFF3/GTF line parser → flat features        (issue: annotation parser)
-src/peaks.js          BED/narrowPeak/CSV → validated intervals     (issue: peak parser)
-src/annotate.js       transcript models → category intervals       (issue: annotation model)
-src/classify.js       intervals + peaks → counts                   (issue: overlap engine)
-src/chart.js          counts → Plot chart + table + downloads      (issue: chart)
-src/worker.js         runs the pipeline off the main thread        (issue: worker + progress)
-test/fixtures/        the hand-built fixture from §7
+index.html            page shell                                   (issue: page shell)
+src/constants.js      category keys, labels, defaults — shared, exists already
+src/io.js             File/stream → lines, gzip detected by magic  (issue: annotation parser)
+src/annotation.js     GFF3/GTF lines → flat features, streaming    (issue: annotation parser)
+src/peaks.js          BED/narrowPeak/CSV text → validated peaks    (issue: peak parser)
+src/annotate.js       feature stream → per-category intervals      (issue: annotation model)
+src/classify.js       partition, centre/bp counts, background      (issue: overlap engine)
+src/chart.js          results → Plot chart, table, CSV/SVG/PNG     (issue: chart)
+src/app.js            UI state, file inputs, settings form         (issue: page shell)
+src/pipeline.js       main-thread API over the worker              (issue: integration)
+src/worker.js         runs parse → annotate → classify off-thread  (issue: integration)
+vendor/               generated; never edited by hand
+test/fixtures/        the hand-built fixture and expected.json (§7, ADR-0014)
 test/*.test.js        node --test
 ```
 
 **The interfaces are fixed first, so the issues can be built in parallel.** Each module
-exports plain functions over plain objects:
+exports plain functions over plain objects. Category keys come from `src/constants.js`:
+`promoter`, `utr5`, `utr3`, `exon`, `intron`, `intergenic`.
 
 ```js
-// annotation.js parseAnnotationLines(asyncIterable<string>, {format}) → AsyncIterable<
-//                 {kind: 'feature', chrom, start, end, strand, type, id, parents: [], transcriptId, attrs}
-//               | {kind: 'sequenceRegion', chrom, length}>
-//               transcriptId is normalised: GTF transcript_id; GFF3 the transcript's own ID,
-//               or its Parent for exons, CDS and UTRs.
-// peaks.js     parsePeaks(text, {format, zeroBased}) → {peaks: [{chrom, start, end, name}], rejected: [{line, reason}]}
-// annotate.js  buildCategoryIntervals(features, settings) → Map<chrom, [{start, end, category}]>
-// classify.js  classify(categoryIntervals, peaks, settings) → {counts: {category: n}, matched: n, unmatched: n, unmatchedChroms: [...], perPeak: [...]}
-//              counts sum to matched; percentages are counts / matched
-// chart.js     render(el, results[], settings) → void
+// io.js         linesFromFile(file: Blob) → AsyncIterable<string>
+//               linesFromStream(stream: ReadableStream<Uint8Array>) → AsyncIterable<string>
+//               Gzip detected by the 1f 8b magic bytes, not the file name; decoded with
+//               DecompressionStream. Handles \n and \r\n, and a final line with no newline.
+//
+// annotation.js parseAnnotationLines(lines: AsyncIterable<string> | Iterable<string>,
+//                                    {format: "gff3" | "gtf" | "auto"}) → AsyncIterable<
+//                 | {kind: "feature", chrom, start, end, strand, type, id, parents, attrs}
+//                 | {kind: "sequenceRegion", chrom, length}
+//                 | {kind: "assembly", name}>
+//               start/end 0-based half-open. id: string | null. parents: string[].
+//               GTF is normalised to the same id/parents model: a transcript line gets
+//               id = transcript_id, parents = [gene_id]; exon/CDS/UTR lines get
+//               id = null, parents = [transcript_id]; a gene line gets id = gene_id.
+//               attrs holds only gene_type, transcript_type and tag, when present.
+//               Only needed features are yielded: exon, CDS, UTR, five_prime_UTR,
+//               three_prime_UTR, plus any feature with an id (genes, transcripts, mRNA…).
+//
+// peaks.js      parsePeaks(text: string, {format: "bed" | "csv" | "auto", oneBased?: boolean})
+//                 → {peaks: [{chrom, start, end, name}], rejected: [{lineNumber, line, reason}],
+//                    format}
+//               BED/narrowPeak/broadPeak: skip blank, #, track and browser lines.
+//               CSV/TSV: header required; columns found by name (ADR-0007).
+//               oneBased converts 1-based closed CSV coordinates (start − 1).
+//
+// annotate.js   buildAnnotation(features: AsyncIterable, {proteinCodingOnly})
+//                 → Promise<{transcripts: number, chromLengths: Map<chrom, length>,
+//                            assembly: string | null, byChrom: Map<chrom, {
+//                              tss: [[pos, strand]...], utr5: [[s, e]...], utr3: [[s, e]...],
+//                              exon: [[s, e]...], transcript: [[s, e]...]}>}>
+//               Consumes the stream incrementally (ADR-0016). A transcript is any id that
+//               is the parent of an exon. GTF UTRs split into 5'/3' by CDS position and
+//               strand. Promoters are NOT built here: they depend on a setting, so
+//               the engine builds them from tss. Introns need no list of their own:
+//               transcript spans enter the partition just above intergenic, so any
+//               transcript base not claimed by a higher category is intron.
+//
+// classify.js   buildPartition(annotation, {promoterUpstream, promoterDownstream, priority})
+//                 → Map<chrom, {starts: Int32Array|number[], ends, categories}>
+//               classifyPeaks(partition, peaks, {mode: "centre" | "bp"})
+//                 → {counts: {category: n}, matched, unmatched, unmatchedChroms: string[],
+//                    outOfRange, perPeak: [category | "unmatched"]}
+//               genomeBackground(partition, chromLengths) → {counts: {category: bp}, total}
+//               normaliseChrom(name) → key used for matching (ADR-0006)
+//
+// chart.js      render(el, results, settings, meta) → void
+//               results: [{label, counts, matched, unmatched, mode, refused?: string}]
+//               (a background row has label "Genome" and background: true)
+//               toCSV(results) → string; settingsSummary(settings, meta) → string
 ```
 
 All coordinates crossing these boundaries are 0-based half-open. That is the contract, and
@@ -335,10 +372,10 @@ every module's tests assert it.
 | Annotation parser (GFF3 and GTF) | interfaces | ✅ |
 | Peak parser and validation | interfaces | ✅ |
 | Chart, table and downloads, using mock counts | interfaces | ✅ |
-| Page shell, file inputs, settings form, and `vendor/` bundles | interfaces | ✅ |
+| Page shell, file inputs and settings form | interfaces | ✅ |
 | Annotation model: derive promoter, UTR, intron and intergenic intervals | annotation parser, fixture | Single owner. This is where the bugs live. |
 | Overlap engine and counting rule | annotation model, fixture | Single owner, same person as above |
-| Worker, streaming and progress | parsers | ✅ once the parsers merge |
+| Integration: worker, streaming, progress, example data | everything above | After the engine merges |
 | Independent cross-check (§7.6) and biology check (§7.8) | everything | Human-run, recorded in the ledger |
 
 The four parallel issues touch different files, so they merge cleanly. The
