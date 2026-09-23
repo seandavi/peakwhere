@@ -53,18 +53,20 @@ export async function runAnalysis(
   }
   onProgress({ message: "Done", fraction: 1 });
 
-  const bp = settings.mode === "bp";
+  // counts, matched and unmatched are in the mode's unit; `peaks` always counts peaks.
+  const unit = settings.mode === "bp" ? 350 : 1;
   const results = peaks.map((file) => {
     const label = labels.get(file) ?? file.name;
     const seed = hash(label);
-    const matched = 500 + (seed % 20000);
-    const unmatched = seed % 7;
+    const matchedPeaks = 500 + (seed % 20000);
+    const unmatchedPeaks = seed % 7;
     return {
       label,
-      counts: mockCounts(seed, bp ? matched * 350 : matched),
-      matched: bp ? matched * 350 : matched,
-      unmatched,
+      counts: mockCounts(seed, matchedPeaks * unit),
+      matched: matchedPeaks * unit,
+      unmatched: unmatchedPeaks * unit,
       mode: settings.mode,
+      peaks: { matched: matchedPeaks, unmatched: unmatchedPeaks },
     };
   });
 

@@ -307,7 +307,7 @@ export function showResults(results, background, meta) {
       text:
         `Annotation: ${meta.annotation}. Counts are ${
           results[0]?.mode === "bp" ? "base pairs" : "peaks"
-        }, and percentages are of the matched total. Unmatched peaks are on chromosomes ` +
+        }, and percentages are of the matched total. Unmatched means on chromosomes ` +
         "the annotation doesn't have." +
         (background ? " The Genome row is in base pairs." : ""),
     }),
