@@ -1,0 +1,32 @@
+name: Bug report
+description: Something gives a wrong answer, breaks, or behaves unexpectedly
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. A wrong number is the most important kind of bug here, so
+        please include enough to reproduce it. **Don't attach unpublished data.** A few
+        lines or a public file is best.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Files (or a few lines of them), settings, and steps.
+    validations:
+      required: true
+  - type: input
+    id: settings
+    attributes:
+      label: Settings summary
+      description: Copy the settings line printed under the chart, if there is one.
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version

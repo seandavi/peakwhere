@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use peakwhere in your work, please cite it as below."
+title: "peakwhere: browser-only genomic region annotation for peak files"
+authors:
+  - family-names: Davis
+    given-names: Sean
+license: MIT
+repository-code: "https://github.com/seandavi/peakwhere"
+url: "https://seandavi.github.io/peakwhere/"
+version: 0.1.0
+date-released: 2026-09-23

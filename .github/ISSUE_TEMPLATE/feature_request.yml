@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest an improvement
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: The analysis you're trying to do, not just the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Does this change a recorded decision?
+      description: If it touches something in adr/, say which record. It may need a new ADR.

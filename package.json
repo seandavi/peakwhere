@@ -1,0 +1,27 @@
+{
+  "name": "peakwhere",
+  "version": "0.1.0",
+  "description": "Where do your peaks land? Browser-only genomic region annotation for ChIP-seq, CUT&RUN and ATAC-seq peaks.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "author": "Sean Davis",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seandavi/peakwhere.git"
+  },
+  "scripts": {
+    "test": "node --test",
+    "vendor": "node scripts/vendor.mjs",
+    "serve": "node scripts/serve.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@flatten-js/interval-tree": "2.0.3",
+    "@observablehq/plot": "0.6.17",
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.0.0"
+  }
+}
