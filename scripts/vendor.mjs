@@ -5,7 +5,7 @@ import { build } from "esbuild";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const entries = ["plot", "interval-tree"];
+const entries = ["plot"];
 const packages = new Map();
 
 for (const name of entries) {

@@ -31,3 +31,4 @@ superseding ADR is for.
 | [0013](0013-genome-build-check.md) | Show the annotation's assembly, and warn on out-of-range peaks | Q12 |
 | [0014](0014-fixture-first.md) | The fixture's expected answers are written by hand, before code | §7 |
 | [0015](0015-vendored-libraries.md) | Libraries bundled into a checked-in `vendor/`; no CDN, no build to run | §9 |
+| [0016](0016-partition-not-interval-tree.md) | Classify against a priority-resolved partition; no interval tree | §8, §9 |
