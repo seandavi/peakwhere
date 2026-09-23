@@ -3,11 +3,129 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>peakwhere</title>
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Where do your peaks land? Classify ChIP-seq, CUT&amp;RUN and ATAC-seq peaks into promoter, UTR, exon, intron and intergenic regions, entirely in your browser.">
+  <title>peakwhere: where do your peaks land?</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f766e'/%3E%3Cpath d='M4 25h5l3-6 4 3 5-15 4 18h3' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="src/style.css">
+  <script type="module" src="src/app.js"></script>
 </head>
 <body>
-  <h1>peakwhere</h1>
-  <p>Where do your peaks land? Under construction — see
-  <a href="https://github.com/seandavi/peakwhere">the repository</a>.</p>
+  <header class="site-header">
+    <div class="wrap">
+      <p class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M4 25h5l3-6 4 3 5-15 4 18h3"/></svg>
+        <span>peakwhere</span>
+      </p>
+      <h1>Where do your peaks land?</h1>
+      <p class="pitch">Drop in a gene annotation and your ChIP-seq, CUT&amp;RUN or ATAC-seq peaks, and see how they split between promoters, UTRs, exons, introns and intergenic space, one bar per file.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="privacy" aria-labelledby="privacy-title">
+      <svg class="privacy-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <div>
+        <h2 id="privacy-title">Your files never leave your computer.</h2>
+        <p>Everything runs here, in this browser tab. Nothing is uploaded, there is no server and no account, and the page makes no requests to anywhere else: no analytics, no fonts, no CDNs.</p>
+      </div>
+    </section>
+
+    <form id="analysis-form" class="steps" novalidate>
+      <section class="card" aria-labelledby="annotation-title">
+        <h2 id="annotation-title"><span class="step">1</span> Gene annotation</h2>
+        <p class="hint">One GFF3 or GTF file, plain or <code>.gz</code>. GFF3 is preferred: it has UTRs split by type and chromosome lengths.</p>
+        <div class="drop-zone single" id="annotation-drop" data-empty="true">
+          <input type="file" id="annotation-input" class="visually-hidden" accept=".gff3,.gff,.gtf,.gz">
+          <label for="annotation-input" class="button secondary">Choose annotation</label>
+          <span class="drop-text">or drop it here</span>
+          <div class="chosen" id="annotation-chosen" hidden>
+            <span class="file-name"></span>
+            <span class="file-size"></span>
+            <button type="button" class="icon-button" data-clear="annotation" aria-label="Remove annotation file">✕</button>
+          </div>
+        </div>
+
+        <details class="optional" id="chrom-sizes-details">
+          <summary>Optional: chromosome sizes</summary>
+          <p class="hint">A <code>chrom.sizes</code> file (two columns: name, length) lets the chart show a <strong>Genome</strong> background bar when the annotation doesn't give chromosome lengths, as a GTF never does.</p>
+          <div class="drop-zone single" id="chrom-sizes-drop" data-empty="true">
+            <input type="file" id="chrom-sizes-input" class="visually-hidden" accept=".sizes,.txt,.tsv,.gz">
+            <label for="chrom-sizes-input" class="button secondary">Choose chrom.sizes</label>
+            <span class="drop-text">or drop it here</span>
+            <div class="chosen" id="chrom-sizes-chosen" hidden>
+              <span class="file-name"></span>
+              <span class="file-size"></span>
+              <button type="button" class="icon-button" data-clear="chromSizes" aria-label="Remove chromosome sizes file">✕</button>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card" aria-labelledby="peaks-title">
+        <h2 id="peaks-title"><span class="step">2</span> Peak files</h2>
+        <p class="hint">BED, narrowPeak or broadPeak, plain or <code>.gz</code>; or CSV/TSV with <code>chr</code>, <code>start</code> and <code>end</code> columns. Each file becomes one bar, in the order added.</p>
+        <div class="drop-zone multi" id="peaks-drop">
+          <input type="file" id="peaks-input" class="visually-hidden" multiple accept=".bed,.narrowPeak,.broadPeak,.csv,.tsv,.txt,.gz">
+          <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <span class="drop-text">Drop peak files here</span>
+          <label for="peaks-input" class="button secondary">or choose files</label>
+        </div>
+        <ol class="peak-list" id="peak-list" aria-label="Peak files"></ol>
+      </section>
+
+      <section class="card" aria-labelledby="settings-title">
+        <h2 id="settings-title"><span class="step">3</span> Settings</h2>
+        <fieldset class="setting">
+          <legend>Promoter window around each TSS</legend>
+          <div class="bp-inputs">
+            <label>Upstream
+              <span class="with-unit"><input type="number" id="promoter-upstream" name="promoterUpstream" min="0" step="1" inputmode="numeric" required> bp</span>
+            </label>
+            <label>Downstream
+              <span class="with-unit"><input type="number" id="promoter-downstream" name="promoterDownstream" min="0" step="1" inputmode="numeric" required> bp</span>
+            </label>
+          </div>
+          <p class="hint">Strand-aware. ChIPseeker's default is ±3000; HOMER's is −1000/+100.</p>
+        </fieldset>
+
+        <fieldset class="setting">
+          <legend>What to count</legend>
+          <label class="choice"><input type="radio" name="mode" value="centre"> <span><strong>Peak centres</strong>: each peak goes to the region its middle base is in</span></label>
+          <label class="choice"><input type="radio" name="mode" value="bp"> <span><strong>Base pairs</strong>: the share of all peak bases in each region; better for broad peaks</span></label>
+        </fieldset>
+
+        <fieldset class="setting">
+          <legend>Transcripts</legend>
+          <label class="choice"><input type="checkbox" id="protein-coding-only" name="proteinCodingOnly"> <span><strong>Protein-coding only</strong>: ignore non-coding transcripts. Otherwise every transcript in the file counts.</span></label>
+        </fieldset>
+      </section>
+
+      <div class="actions">
+        <button type="submit" class="button primary" id="run" disabled>Run analysis</button>
+        <button type="button" class="button secondary" id="try-example" disabled title="Coming soon">Try the example</button>
+        <p class="run-hint" id="run-hint" aria-live="polite"></p>
+      </div>
+    </form>
+
+    <section class="progress" id="progress" hidden aria-live="polite">
+      <progress id="progress-bar" max="1"></progress>
+      <p id="progress-message"></p>
+    </section>
+
+    <section class="warnings" id="warnings" aria-label="Warnings" hidden></section>
+
+    <section class="results" id="results" aria-label="Results" hidden></section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>peakwhere is open source:
+        <a href="https://github.com/seandavi/peakwhere">source on GitHub</a> ·
+        <a href="https://github.com/seandavi/peakwhere/blob/main/LICENSE">MIT licence</a> ·
+        <a href="https://github.com/seandavi/peakwhere/blob/main/THIRD_PARTY_LICENSES.md">third-party licences</a>
+      </p>
+    </div>
+  </footer>
 </body>
 </html>
