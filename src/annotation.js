@@ -2,8 +2,14 @@
 // This is the one place where annotation coordinates change base: a 1-based closed
 // `start..end` becomes 0-based half-open `[start − 1, end)`.
 
-/** Feature types yielded even without an id. Anything else needs an id to be kept. */
-const NEEDED_TYPES = new Set(["exon", "CDS", "UTR", "five_prime_UTR", "three_prime_UTR"]);
+/**
+ * Feature types yielded even without an id, keyed by lower case. Anything else needs an
+ * id to be kept. Matching ignores case and yields the canonical spelling, so Ensembl's
+ * `five_prime_utr` reaches downstream code as `five_prime_UTR`.
+ */
+const NEEDED_TYPES = new Map(
+  ["exon", "CDS", "UTR", "five_prime_UTR", "three_prime_UTR"].map((t) => [t.toLowerCase(), t]),
+);
 
 /** Attribute keys copied into `attrs`. */
 const KEPT_ATTRS = new Set(["gene_type", "transcript_type", "tag"]);
@@ -28,7 +34,8 @@ const GTF_ATTR = /([^\s;]+)\s+(?:"([^"]*)"|([^\s;]*))/g;
  * GTF is normalised onto the GFF3 id/parents model: a gene line gets id = gene_id; a
  * transcript line gets id = transcript_id and parents = [gene_id]; exon, CDS and UTR
  * lines get id = null and parents = [transcript_id]. Only exon, CDS, UTR,
- * five_prime_UTR and three_prime_UTR features, and features with an id, are yielded.
+ * five_prime_UTR and three_prime_UTR features (matched in any case and yielded with
+ * that spelling), and features with an id, are yielded.
  *
  * Format "auto" uses a `##gff-version 3` header if there is one, and otherwise the
  * attribute syntax of the first feature line that has attributes.
@@ -72,17 +79,18 @@ export async function* parseAnnotationLines(lines, { format = "auto" } = {}) {
       throw new Error(`Line ${lineNumber}: expected 9 tab-separated columns, found ${cols.length}`);
     }
     inHeader = false;
-    const type = cols[2];
+    const neededType = NEEDED_TYPES.get(cols[2].toLowerCase());
+    const type = neededType ?? cols[2];
     const attributes = cols[8];
     if (format === "auto" && attributes !== "" && attributes !== ".") {
       format = /^\s*[^\s=;]+=/.test(attributes) ? "gff3" : "gtf";
     }
     // GTF ids come only from gene and transcript lines, so other types can be dropped
     // before their attributes are read.
-    if (format === "gtf" && !NEEDED_TYPES.has(type) && type !== "gene" && type !== "transcript") continue;
+    if (format === "gtf" && !neededType && type !== "gene" && type !== "transcript") continue;
 
     const parsed = format === "gtf" ? gtfFeature(type, attributes) : gff3Feature(attributes);
-    if (parsed.id === null && !NEEDED_TYPES.has(type)) continue;
+    if (parsed.id === null && !neededType) continue;
 
     const start = Number(cols[3]);
     const end = Number(cols[4]);

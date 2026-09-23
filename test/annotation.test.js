@@ -195,6 +195,32 @@ test("only needed features are yielded", async () => {
   );
 });
 
+test("feature types match in any case and come out canonical (Ensembl GTF)", async () => {
+  const attrs = 'gene_id "ENSMUSG1"; transcript_id "ENSMUST1";';
+  const ensembl = ["exon", "CDS", "five_prime_utr", "three_prime_utr", "start_codon"].map(
+    (type, i) => `1\tensembl\t${type}\t${i * 10 + 1}\t${i * 10 + 5}\t.\t-\t.\t${attrs}`,
+  );
+  const lower = ["cds", "utr", "Exon"].map((type) => `1\tx\t${type}\t1\t5\t.\t+\t.\t${attrs}`);
+  const records = await collect(parseAnnotationLines([...ensembl, ...lower], { format: "auto" }));
+  assert.deepEqual(
+    records.map((r) => [r.type, r.start, r.parents]),
+    [
+      ["exon", 0, ["ENSMUST1"]],
+      ["CDS", 10, ["ENSMUST1"]],
+      ["five_prime_UTR", 20, ["ENSMUST1"]],
+      ["three_prime_UTR", 30, ["ENSMUST1"]],
+      ["CDS", 0, ["ENSMUST1"]],
+      ["UTR", 0, ["ENSMUST1"]],
+      ["exon", 0, ["ENSMUST1"]],
+    ],
+  );
+  // Same in GFF3: a lowercase UTR with no ID is still kept.
+  const [utr] = await collect(
+    parseAnnotationLines(["chr1\tx\tfive_prime_utr\t1\t5\t.\t+\t.\tParent=t"], { format: "gff3" }),
+  );
+  assert.equal(utr.type, "five_prime_UTR");
+});
+
 test("assembly is read from header comments, GENCODE style, once", async () => {
   const gff3 = [
     "##gff-version 3",
