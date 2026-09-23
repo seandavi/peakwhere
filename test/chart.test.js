@@ -136,6 +136,18 @@ test("tooltips give the count, its unit and the percentage of matched", () => {
     "Percent of matched peak base pairs →");
 });
 
+test("the x-axis label says the Genome bar is base pairs when the file bars count peaks", () => {
+  const xLabel = (results) =>
+    chartSVG(results, DEFAULT_SETTINGS, {}, { document: dom() })
+      .querySelector('g[aria-label="x-axis label"] text').textContent;
+  assert.equal(xLabel(RESULTS), "Percent of matched peaks (Genome bar: percent of base pairs) →");
+  assert.equal(xLabel(RESULTS.filter((r) => !r.background)), "Percent of matched peaks →");
+
+  const genome = RESULTS.find((r) => r.background);
+  const bp = [{ label: "A", mode: "bp", counts: { exon: 1, intron: 3 }, matched: 4, unmatched: 0 }, genome];
+  assert.equal(xLabel(bp), "Percent of matched peak base pairs →", "no note when everything is bp");
+});
+
 test("table: a row per result, categories plus matched and unmatched, count and percentage", () => {
   const el = rendered();
   const table = el.querySelector("table.pw-table");

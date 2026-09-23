@@ -1,7 +1,9 @@
 // Page shell: UI state, file inputs, settings form, and the call into the pipeline.
 // Layout: state → building the run request → render functions → event wiring.
-import { CATEGORIES, CATEGORY_LABELS, DEFAULT_SETTINGS } from "./constants.js";
-import { runAnalysis } from "./pipeline.js";
+import { ASSIGNMENT_COLUMNS } from "./analysis.js";
+import { render, settingsSummary } from "./chart.js";
+import { DEFAULT_SETTINGS } from "./constants.js";
+import { runAnalysis, SupersededError } from "./pipeline.js";
 import {
   duplicateLabels,
   formatBytes,
@@ -35,9 +37,23 @@ export const state = {
     proteinCodingOnly: DEFAULT_SETTINGS.proteinCodingOnly,
   },
   running: false,
+  /** True once results are showing: from then on, changing a setting re-runs. */
+  hasResults: false,
 };
 
 let nextPeakId = 1;
+
+/** The Try-the-example data in examples/ (served from the same site), labelled by assay. */
+const EXAMPLE = {
+  annotation: "gencode.vM25.basic.chr19.gff3.gz",
+  peaks: [
+    ["thymus_H3K4me3_ENCFF674JZY.chr19.narrowPeak.gz", "H3K4me3"],
+    ["thymus_H3K36me3_ENCFF853BYO.chr19.narrowPeak.gz", "H3K36me3"],
+    ["thymus_H3K27me3_ENCFF478UYW.chr19.narrowPeak.gz", "H3K27me3"],
+    ["thymus_CTCF_ENCFF714WDP.chr19.narrowPeak.gz", "CTCF"],
+    ["thymus_DNase_ENCFF979ULB.chr19.narrowPeak.gz", "DNase"],
+  ],
+};
 
 /** Reasons the analysis can't run yet; empty when it can. */
 export function runBlockers() {
@@ -71,10 +87,14 @@ export function buildRunRequest() {
   return request;
 }
 
-function addPeakFiles(files) {
-  for (const file of files) {
+/**
+ * @param {File[]} files
+ * @param {string[]} [labels] default labels, instead of ones made from the file names
+ */
+function addPeakFiles(files, labels = []) {
+  for (const [i, file] of files.entries()) {
     const defaultLabel = uniqueLabel(
-      labelFromFilename(file.name),
+      labels[i] ?? labelFromFilename(file.name),
       state.peaks.map((p) => p.label),
     );
     const entry = {
@@ -121,7 +141,6 @@ async function detectPeakFormat(file) {
 // ---------------------------------------------------------------------------
 
 const $ = (id) => document.getElementById(id);
-const numberFormat = new Intl.NumberFormat();
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -247,99 +266,122 @@ function renderError(error) {
   $("progress-message").textContent = `Something went wrong: ${error?.message ?? error}`;
 }
 
-function renderWarnings(warnings) {
-  const box = $("warnings");
-  box.hidden = !warnings.length;
-  box.replaceChildren(el("ul", {}, ...warnings.map((w) => el("li", { text: w }))));
-}
-
 /**
- * PLACEHOLDER for the chart (issue #11 swaps in src/chart.js). Renders the results as a
- * plain table: one row per peak file, then the genome background if there is one.
- * @param {object[]} results [{label, counts, matched, unmatched, mode, refused?}]
- * @param {object | null} background {label: "Genome", background: true, counts, ...}
- * @param {object} meta
+ * Show the results with src/chart.js: chart, settings summary, warnings, table and
+ * downloads, plus a download of the per-peak assignments (SPEC §3.4).
+ * @param {object[]} results one row per peak file (SPEC §9)
+ * @param {object | null} background the Genome row, or null
+ * @param {object} meta annotationName, assembly, warnings
+ * @param {object} settings the settings the results were computed with
+ * @param {Blob} assignments per-peak TSV body from the worker
  */
-export function showResults(results, background, meta) {
+export function showResults(results, background, meta, settings, assignments) {
   const container = $("results");
-  const rows = background ? [...results, background] : results;
+  const chart = el("div");
+  render(chart, background ? [...results, background] : results, settings, meta);
 
-  const head = el(
-    "tr",
-    {},
-    el("th", { scope: "col", text: "File" }),
-    ...CATEGORIES.map((c) => el("th", { scope: "col", text: CATEGORY_LABELS[c] })),
-    el("th", { scope: "col", text: "Matched" }),
-    el("th", { scope: "col", text: "Unmatched" }),
-  );
-  const body = rows.map((r) => {
-    const label = el("th", { scope: "row", title: r.label, text: r.label });
-    if (r.refused) {
-      return el(
-        "tr",
-        { class: "refused" },
-        label,
-        el("td", { colspan: CATEGORIES.length + 2, text: r.refused }),
-      );
-    }
-    const total = CATEGORIES.reduce((n, c) => n + r.counts[c], 0);
-    return el(
-      "tr",
-      r.background ? { class: "background" } : {},
-      label,
-      ...CATEGORIES.map((c) =>
-        el(
-          "td",
-          {},
-          numberFormat.format(r.counts[c]),
-          el("span", { class: "pct", text: `${total ? ((100 * r.counts[c]) / total).toFixed(1) : "0.0"}%` }),
-        ),
-      ),
-      el("td", { text: numberFormat.format(r.matched) }),
-      el("td", { text: r.background ? "—" : numberFormat.format(r.unmatched) }),
+  const perPeak = el("button", { type: "button", "data-format": "tsv", text: "Download per-peak TSV" });
+  perPeak.addEventListener("click", () => {
+    const header =
+      `# peakwhere per-peak assignments: ${settingsSummary(settings, meta)}\n` +
+      "# start and end are 0-based half-open, as in BED; category is unmatched for peaks " +
+      "on chromosomes not in the annotation\n";
+    const url = URL.createObjectURL(
+      new Blob([header, ASSIGNMENT_COLUMNS, assignments], { type: "text/tab-separated-values" }),
     );
+    const a = el("a", { href: url, download: "peakwhere-per-peak.tsv" });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   });
+  chart.querySelector(".pw-downloads")?.append(perPeak);
 
-  container.replaceChildren(
-    el("h2", { text: "Results" }),
-    el("p", {
-      class: "hint",
-      text:
-        `Annotation: ${meta.annotation}. Counts are ${
-          results[0]?.mode === "bp" ? "base pairs" : "peaks"
-        }, and percentages are of the matched total. Unmatched means on chromosomes ` +
-        "the annotation doesn't have." +
-        (background ? " The Genome row is in base pairs." : ""),
-    }),
-    el(
-      "div",
-      { class: "table-scroll" },
-      el("table", {}, el("thead", {}, head), el("tbody", {}, ...body)),
-    ),
-  );
+  container.replaceChildren(el("h2", { text: "Results" }), chart);
   container.hidden = false;
 }
 
-async function run() {
-  if (state.running || runBlockers().length) return;
+/** Tags each run, so a slower, older run can never overwrite a newer one's results. */
+let latestRun = 0;
+
+/**
+ * Run the analysis and show the results. `auto` is a re-run after a setting changed:
+ * it doesn't scroll, and shows progress only if it takes a noticeable time.
+ */
+async function run({ auto = false } = {}) {
+  if (runBlockers().length) return;
   const request = buildRunRequest();
+  const token = ++latestRun;
+  const started = performance.now();
+  const showProgress = (progress) => {
+    if (token === latestRun && (!auto || performance.now() - started > 250)) renderProgress(progress);
+  };
   state.running = true;
   renderRunState();
-  renderProgress({ message: "Starting…", fraction: 0 });
+  if (!auto) renderProgress({ message: "Starting…", fraction: 0 });
   try {
-    const { results, background, meta, warnings } = await runAnalysis(request, {
-      onProgress: renderProgress,
+    const { results, background, meta, assignments } = await runAnalysis(request, {
+      onProgress: showProgress,
     });
+    if (token !== latestRun) return;
     $("progress").hidden = true;
-    renderWarnings(warnings);
-    showResults(results, background, meta);
-    ($("warnings").hidden ? $("results") : $("warnings")).scrollIntoView({ behavior: "smooth" });
+    showResults(results, background, meta, request.settings, assignments);
+    state.hasResults = true;
+    if (!auto) $("results").scrollIntoView({ behavior: "smooth" });
   } catch (error) {
+    if (token !== latestRun || error instanceof SupersededError) return;
     renderError(error);
   } finally {
-    state.running = false;
-    renderRunState();
+    if (token === latestRun) {
+      state.running = false;
+      renderRunState();
+    }
   }
+}
+
+let rerunTimer;
+
+/** Once results are showing, re-run shortly after the last settings or label change. */
+function scheduleRerun() {
+  if (!state.hasResults) return;
+  clearTimeout(rerunTimer);
+  rerunTimer = setTimeout(() => run({ auto: true }), 300);
+}
+
+/** Example files, fetched once from examples/ and then reused (so the worker's cache hits). */
+let exampleFiles = null;
+
+async function fetchExample() {
+  const get = async (name) => {
+    const response = await fetch(new URL(`../examples/${name}`, import.meta.url));
+    if (!response.ok) throw new Error(`Couldn't load the example file ${name} (HTTP ${response.status})`);
+    return new File([await response.blob()], name);
+  };
+  const [annotation, ...peaks] = await Promise.all([
+    get(EXAMPLE.annotation),
+    ...EXAMPLE.peaks.map(([name]) => get(name)),
+  ]);
+  return { annotation, peaks };
+}
+
+/** Load the chr19 example into the form, replacing the current files, and run it. */
+async function tryExample() {
+  if (state.running) return;
+  $("try-example").disabled = true;
+  renderProgress({ message: "Fetching the example files…", fraction: null });
+  try {
+    exampleFiles ??= await fetchExample();
+  } catch (error) {
+    renderError(error);
+    return;
+  } finally {
+    $("try-example").disabled = false;
+  }
+  setSingleFile("annotation", exampleFiles.annotation);
+  setSingleFile("chromSizes", null);
+  state.peaks = [];
+  addPeakFiles(exampleFiles.peaks, EXAMPLE.peaks.map(([, label]) => label));
+  await run();
 }
 
 // ---------------------------------------------------------------------------
@@ -407,6 +449,7 @@ function wire() {
     if (entry && e.target.classList.contains("label-input")) {
       entry.label = e.target.value;
       renderRunState();
+      scheduleRerun();
     }
   });
   list.addEventListener("focusout", (e) => {
@@ -419,7 +462,10 @@ function wire() {
   });
   list.addEventListener("change", (e) => {
     const entry = peakFor(e.target);
-    if (entry && e.target.classList.contains("one-based")) entry.oneBased = e.target.checked;
+    if (entry && e.target.classList.contains("one-based")) {
+      entry.oneBased = e.target.checked;
+      scheduleRerun();
+    }
   });
   list.addEventListener("click", (e) => {
     const entry = peakFor(e.target);
@@ -433,24 +479,31 @@ function wire() {
   $("promoter-upstream").addEventListener("input", (e) => {
     state.settings.promoterUpstream = parseBasePairs(e.target.value);
     renderRunState();
+    scheduleRerun();
   });
   $("promoter-downstream").addEventListener("input", (e) => {
     state.settings.promoterDownstream = parseBasePairs(e.target.value);
     renderRunState();
+    scheduleRerun();
   });
   for (const radio of document.querySelectorAll('input[name="mode"]')) {
     radio.addEventListener("change", () => {
-      if (radio.checked) state.settings.mode = radio.value;
+      if (radio.checked) {
+        state.settings.mode = radio.value;
+        scheduleRerun();
+      }
     });
   }
   $("protein-coding-only").addEventListener("change", (e) => {
     state.settings.proteinCodingOnly = e.target.checked;
+    scheduleRerun();
   });
 
   $("analysis-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    run();
+    if (!state.running) run();
   });
+  $("try-example").addEventListener("click", tryExample);
 }
 
 wire();

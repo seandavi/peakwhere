@@ -192,9 +192,13 @@ function plotChart(results, doc, width) {
   const backgrounds = rows.flatMap((r, row) => (r.background && !notDrawn(r) ? [{ row }] : []));
 
   const units = new Set(rows.filter((r) => !r.background).map(unitOf));
-  const xLabel = units.size === 1 && units.has("bp")
+  const fileLabel = units.size === 1 && units.has("bp")
     ? "Percent of matched peak base pairs"
     : units.size === 1 ? "Percent of matched peaks" : "Percent of matched peaks or base pairs";
+  // The Genome bar is always base pairs; say so when the file bars are not.
+  const xLabel = backgrounds.length > 0 && !(units.size === 1 && units.has("bp"))
+    ? `${fileLabel} (Genome bar: percent of base pairs)`
+    : fileLabel;
   const longest = Math.max(0, ...rows.map((r) => r.label.length));
 
   return Plot.plot({

@@ -1,30 +1,49 @@
-// STUB. Returns mock results so the page shell can be built and exercised before the
-// parsers, engine and worker exist. The integration issue (#11) replaces this file;
-// the signature and the shape of what it returns are the contract (SPEC.md §9).
-import { CATEGORIES } from "./constants.js";
+// Main-thread API over the analysis worker (SPEC §9). One module worker is started on
+// first use and kept, so it can cache the parsed annotation between runs.
+import { SupersededError } from "./analysis.js";
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export { SupersededError };
 
-/** Small deterministic hash, so the same label gives the same mock counts every run. */
-function hash(s) {
-  let h = 2166136261;
-  for (const c of s) h = Math.imul(h ^ c.codePointAt(0), 16777619);
-  return h >>> 0;
-}
+/** @type {Worker | null} */
+let worker = null;
+let nextId = 1;
+/** @type {Map<number, {resolve: Function, reject: Function, onProgress: Function}>} */
+const pending = new Map();
 
-function mockCounts(seed, total) {
-  const weights = CATEGORIES.map((_, i) => 1 + ((seed >>> (i * 4)) & 15));
-  const sum = weights.reduce((a, b) => a + b, 0);
-  const counts = Object.fromEntries(
-    CATEGORIES.map((c, i) => [c, Math.floor((total * weights[i]) / sum)]),
-  );
-  counts.intergenic += total - Object.values(counts).reduce((a, b) => a + b, 0);
-  return counts;
+function getWorker() {
+  if (worker) return worker;
+  worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+  worker.addEventListener("message", ({ data }) => {
+    const run = pending.get(data.id);
+    if (!run) return;
+    if (data.type === "progress") {
+      run.onProgress(data.progress);
+      return;
+    }
+    pending.delete(data.id);
+    if (data.type === "result") run.resolve(data.result);
+    else if (data.type === "superseded") run.reject(new SupersededError());
+    else run.reject(new Error(data.message));
+  });
+  // A worker that fails to load or crashes: fail every pending run, and start afresh
+  // next time.
+  worker.addEventListener("error", (event) => {
+    event.preventDefault();
+    const error = new Error(`The analysis worker failed: ${event.message || "it could not be loaded"}`);
+    for (const run of pending.values()) run.reject(error);
+    pending.clear();
+    worker.terminate();
+    worker = null;
+  });
+  return worker;
 }
 
 /**
- * Run the analysis. STUB: ignores file contents and returns mock numbers after a
- * short delay, reporting progress along the way.
+ * Run the analysis in the worker. The parsed annotation is cached there, so a second
+ * run with the same annotation file and protein-coding setting doesn't re-read it.
+ *
+ * Starting a run replaces any run still in progress: the older one rejects with
+ * SupersededError, and its result is never delivered.
  *
  * @param {object} request
  * @param {File} request.annotation GFF3 or GTF, plain or gzipped
@@ -36,67 +55,26 @@ function mockCounts(seed, total) {
  * @param {object} [hooks]
  * @param {(p: {message: string, fraction: number | null}) => void} [hooks.onProgress]
  *   fraction is 0–1, or null when the amount of work left is unknown
- * @returns {Promise<{results: object[], background: object | null, meta: object, warnings: string[]}>}
+ * @returns {Promise<{results: object[], background: object | null, meta: object,
+ *   warnings: string[], assignments: Blob}>} see Analysis.run in src/analysis.js
  */
-export async function runAnalysis(
-  { annotation, peaks, chromSizes, labels, settings },
+export function runAnalysis(
+  { annotation, peaks, chromSizes, csvOneBased, labels, settings },
   { onProgress = () => {} } = {},
 ) {
-  const steps = [
-    `Reading ${annotation.name}`,
-    "Building the annotation",
-    ...peaks.map((f) => `Classifying ${labels.get(f) ?? f.name}`),
-  ];
-  for (const [i, message] of steps.entries()) {
-    onProgress({ message, fraction: i / steps.length });
-    await sleep(300);
-  }
-  onProgress({ message: "Done", fraction: 1 });
-
-  // counts, matched and unmatched are in the mode's unit; `peaks` always counts peaks.
-  const unit = settings.mode === "bp" ? 350 : 1;
-  const results = peaks.map((file) => {
-    const label = labels.get(file) ?? file.name;
-    const seed = hash(label);
-    const matchedPeaks = 500 + (seed % 20000);
-    const unmatchedPeaks = seed % 7;
-    return {
-      label,
-      counts: mockCounts(seed, matchedPeaks * unit),
-      matched: matchedPeaks * unit,
-      unmatched: unmatchedPeaks * unit,
-      mode: settings.mode,
-      peaks: { matched: matchedPeaks, unmatched: unmatchedPeaks },
-    };
-  });
-
-  const warnings = ["Mock results: the analysis pipeline isn't connected yet (#11)."];
-  const hasLengths = Boolean(chromSizes) || /\.gff3?(\.gz)?$/i.test(annotation.name);
-  let background = null;
-  if (hasLengths) {
-    const total = 2_700_000_000;
-    background = {
-      label: "Genome",
-      background: true,
-      counts: mockCounts(hash("Genome"), total),
-      matched: total,
-      unmatched: 0,
-      mode: "bp",
-      total,
-    };
-  } else {
-    warnings.push(
-      "No chromosome lengths, so the Genome bar is hidden. Use a GFF3 with " +
-        "##sequence-region lines, or add a chrom.sizes file.",
-    );
-  }
-
-  const meta = {
-    annotation: annotation.name,
-    chromSizes: chromSizes?.name ?? null,
-    assembly: null,
-    transcripts: 81540,
-    mock: true,
+  const request = {
+    annotation,
+    chromSizes: chromSizes ?? null,
+    peaks: peaks.map((file) => ({
+      file,
+      label: labels.get(file) ?? file.name,
+      oneBased: csvOneBased?.get(file) ?? false,
+    })),
+    settings,
   };
-  return { results, background, meta, warnings };
+  const id = nextId++;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject, onProgress });
+    getWorker().postMessage({ type: "run", id, request });
+  });
 }
