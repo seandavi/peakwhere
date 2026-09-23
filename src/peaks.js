@@ -11,7 +11,8 @@ const END_COLUMNS = ["end", "chromend"];
 const NAME_COLUMNS = ["name", "peak_id", "id"];
 
 const DELIMITERS = ["\t", ",", ";"];
-const INTEGER = /^-?\d+$/;
+/** A plain decimal number, optionally in scientific notation: no hex, no Infinity. */
+const DECIMAL = /^-?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
 
 /**
  * @typedef {{chrom: string, start: number, end: number, name: string | null}} Peak
@@ -110,6 +111,21 @@ function findHeader(lines) {
 }
 
 /**
+ * Read one coordinate. Whole numbers in scientific notation are accepted, because R's
+ * write.csv writes round numbers that way (1e+05). Returns the number, or a rejection
+ * reason for anything that isn't a whole number exactly representable as one.
+ *
+ * @returns {number | string}
+ */
+function toCoordinate(label, text) {
+  if (!DECIMAL.test(text)) return `${label} is not an integer: "${text}"`;
+  const value = Number(text);
+  if (!Number.isInteger(value)) return `${label} is not an integer: "${text}"`;
+  if (!Number.isSafeInteger(value)) return `${label} is too large: "${text}"`;
+  return value + 0; // "-0" becomes 0
+}
+
+/**
  * Validate one row's chromosome and coordinates as written. `shift` is subtracted from
  * start (1 for 1-based input). Returns a peak, or a rejection reason.
  *
@@ -119,10 +135,11 @@ function toPeak(chrom, startText, endText, name, shift) {
   if (!chrom) return "chromosome is empty";
   if (!startText) return "start is missing";
   if (!endText) return "end is missing";
-  if (!INTEGER.test(startText)) return `start is not an integer: "${startText}"`;
-  if (!INTEGER.test(endText)) return `end is not an integer: "${endText}"`;
-  const start = Number(startText) - shift;
-  const end = Number(endText);
+  const startValue = toCoordinate("start", startText);
+  if (typeof startValue === "string") return startValue;
+  const end = toCoordinate("end", endText);
+  if (typeof end === "string") return end;
+  const start = startValue - shift;
   if (start < 0) {
     return shift
       ? `start ${startText} is below 1, the first base in 1-based coordinates`

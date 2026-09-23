@@ -208,18 +208,46 @@ test("rejection: end <= start", () => {
   assert.match(reasonFor("chr,start,end\nchr1,20,20"), /not greater than start/);
 });
 
+test("whole numbers in scientific notation, as R's write.csv writes them, are accepted", () => {
+  for (const [start, end, expected] of [
+    ["1e+05", "200000", [100000, 200000]],
+    ["1E5", "2e5", [100000, 200000]],
+    ["100", "2.5e+06", [100, 2500000]],
+    ["10", "20.0", [10, 20]],
+  ]) {
+    for (const text of [`chr1\t${start}\t${end}`, `chr,start,end\nchr1,${start},${end}`]) {
+      const { peaks, rejected } = parsePeaks(text);
+      assert.deepEqual(rejected, [], text);
+      assert.deepEqual([peaks[0].start, peaks[0].end], expected, text);
+    }
+  }
+  const { peaks } = parsePeaks("chr,start,end\nchr1,1e+05,2e+05", { oneBased: true });
+  assert.deepEqual([peaks[0].start, peaks[0].end], [99999, 200000]);
+});
+
 test("rejection: non-integer coordinates", () => {
   for (const [start, end] of [
     ["10.5", "20"],
+    ["1.5e0", "20"],
+    ["1e-3", "20"],
     ["abc", "20"],
-    ["1e+05", "200000"],
-    ["10", "20.0"],
     ["10", "NaN"],
+    ["10", "Infinity"],
+    ["-Infinity", "20"],
+    ["10", "20abc"],
+    ["1e5x", "200000"],
+    ["0x10", "20"],
   ]) {
     const reason = reasonFor(`chr1\t${start}\t${end}`, { format: "bed" });
     assert.match(reason, /is not an integer/, `${start} ${end}`);
     assert.match(reasonFor(`chr,start,end\nchr1,${start},${end}`), /is not an integer/);
   }
+});
+
+test("rejection: scientific notation that is negative or too large", () => {
+  assert.equal(reasonFor("chr1\t-1e+05\t20", { format: "bed" }), "start is negative: -1e+05");
+  assert.equal(reasonFor("chr1\t10\t1e20", { format: "bed" }), 'end is too large: "1e20"');
+  assert.equal(reasonFor("chr1\t10\t1e400", { format: "bed" }), 'end is not an integer: "1e400"');
 });
 
 test("rejection: missing column or empty field", () => {
