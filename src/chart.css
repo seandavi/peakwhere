@@ -32,13 +32,14 @@
   font-size: 0.9rem;
 }
 
+/* Scrolls sideways when the table is wider than the page. */
 .pw-table-wrap {
   overflow-x: auto;
 }
 
 .pw-table {
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   margin-bottom: 1rem;
 }
 
@@ -51,7 +52,7 @@
 
 .pw-table th,
 .pw-table td {
-  padding: 0.3rem 0.6rem;
+  padding: 0.25rem 0.4rem;
   border-bottom: 1px solid var(--pw-rule);
   text-align: left;
   vertical-align: top;
@@ -74,6 +75,7 @@
 
 .pw-table th[scope="row"] {
   font-weight: 600;
+  max-width: 13em;
 }
 
 .pw-pct {

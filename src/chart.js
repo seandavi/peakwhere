@@ -399,8 +399,10 @@ function table(doc, results) {
   const tbody = doc.createElement("tbody");
   for (const r of ordered(results)) {
     const tr = cell(doc, "tr", undefined, r.background ? "pw-background" : undefined);
-    const th = cell(doc, "th", r.label);
+    const th = cell(doc, "th");
     th.setAttribute("scope", "row");
+    // Long file names may wrap after _ . - (thymus_H3K4me3_ENCFF674JZY), not mid-word.
+    for (const part of r.label.split(/(?<=[_.-])/)) th.append(part, doc.createElement("wbr"));
     tr.append(th, cell(doc, "td", unitOf(r)));
     const message = notDrawn(r);
     if (message) {
