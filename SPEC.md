@@ -96,8 +96,8 @@ Annotation files contain only some of the categories people want. The rest have 
 | Category | GENCODE GFF3 | GENCODE GTF | How to derive it |
 |---|---|---|---|
 | Promoter | No | No | A window around each transcript's TSS. The TSS is `start` on `+` strand and `end` on `−` strand. Window size is Q1. |
-| 5′ UTR | **Yes**: `five_prime_UTR` | **No.** Only a single `UTR` type | From GTF: `UTR` segments upstream of the transcript's CDS, in transcript orientation. |
-| 3′ UTR | **Yes**: `three_prime_UTR` | **No**, same as above | From GTF: `UTR` segments downstream of the CDS. |
+| 5′ UTR | **Yes**: `five_prime_UTR` | **No.** Only a single `UTR` type | From GTF: `UTR` segments upstream of the transcript's CDS, in transcript orientation. GTF 2.2's own `5UTR` (UCSC exports) is read as `five_prime_UTR`. |
+| 3′ UTR | **Yes**: `three_prime_UTR` | **No**, same as above | From GTF: `UTR` segments downstream of the CDS. GTF 2.2's `3UTR` is read as `three_prime_UTR`. |
 | Exon (CDS / other) | Yes: `exon`, `CDS` | Yes: `exon`, `CDS` | Directly. Non-coding transcripts have exons and no CDS. |
 | Intron | No | No | Transcript span minus its exons. |
 | Downstream / TTS | No | No | A window past each transcript's end. Optional (Q7). |
