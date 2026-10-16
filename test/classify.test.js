@@ -30,7 +30,8 @@ const segments = (partition, chrom) => {
   return [...starts].map((s, i) => [s, ends[i], CATEGORIES[categories[i]]]);
 };
 
-for (const name of ["fixture.gff3", "fixture.gtf"]) {
+// ucsc.gtf: GTF 2.2 names its UTRs 5UTR and 3UTR, as UCSC exports do.
+for (const name of ["fixture.gff3", "fixture.gtf", "ucsc.gtf"]) {
   test(`${name} + peaks.bed: every peak's centre category matches expected.json`, async () => {
     const partition = buildPartition(await annotationOf(name));
     const peaks = await peaksOf("peaks.bed");

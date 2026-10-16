@@ -5,11 +5,14 @@
 /**
  * Feature types yielded even without an id, keyed by lower case. Anything else needs an
  * id to be kept. Matching ignores case and yields the canonical spelling, so Ensembl's
- * `five_prime_utr` reaches downstream code as `five_prime_UTR`.
+ * `five_prime_utr` reaches downstream code as `five_prime_UTR`. GTF 2.2's own `5UTR` and
+ * `3UTR` (as in UCSC exports) are yielded as `five_prime_UTR` and `three_prime_UTR`.
  */
-const NEEDED_TYPES = new Map(
-  ["exon", "CDS", "UTR", "five_prime_UTR", "three_prime_UTR"].map((t) => [t.toLowerCase(), t]),
-);
+const NEEDED_TYPES = new Map([
+  ...["exon", "CDS", "UTR", "five_prime_UTR", "three_prime_UTR"].map((t) => [t.toLowerCase(), t]),
+  ["5utr", "five_prime_UTR"],
+  ["3utr", "three_prime_UTR"],
+]);
 
 /** Attribute keys copied into `attrs`. */
 const KEPT_ATTRS = new Set(["gene_type", "transcript_type", "tag"]);
@@ -35,7 +38,8 @@ const GTF_ATTR = /([^\s;]+)\s+(?:"([^"]*)"|([^\s;]*))/g;
  * transcript line gets id = transcript_id and parents = [gene_id]; exon, CDS and UTR
  * lines get id = null and parents = [transcript_id]. Only exon, CDS, UTR,
  * five_prime_UTR and three_prime_UTR features (matched in any case and yielded with
- * that spelling), and features with an id, are yielded.
+ * that spelling; GTF 2.2's 5UTR/3UTR are yielded as five_prime_UTR/three_prime_UTR), and
+ * features with an id, are yielded.
  *
  * Format "auto" uses a `##gff-version 3` header if there is one, and otherwise the
  * attribute syntax of the first feature line that has attributes.
